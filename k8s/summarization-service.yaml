@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: summarization-service
+  namespace: hn-tldr-test
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: summarization-service
+  template:
+    metadata:
+      labels:
+        app: summarization-service
+    spec:
+      containers:
+      - name: summarization-service
+        image: summarization-service:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 7002
+        envFrom:
+        - configMapRef:
+            name: hn-tldr-config
+        - secretRef:
+            name: hn-tldr-secrets
+        volumeMounts:
+        - name: data-volume
+          mountPath: /app/data
+      volumes:
+      - name: data-volume
+        persistentVolumeClaim:
+          claimName: hn-tldr-data-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: summarization-service
+  namespace: hn-tldr-test
+spec:
+  selector:
+    app: summarization-service
+  ports:
+  - protocol: TCP
+    port: 7002
+    targetPort: 7002

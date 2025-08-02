@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  hn-api-service:
+    build: ./hn-api-service
+    environment:
+      - ENV=DEV
+    ports:
+      - "7001:7001"
+    volumes:
+      - ./data:/app/data
+
+  summarization-service:
+    build: ./summarization-service
+    environment:
+      - ENV=DEV
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    ports:
+      - "7002:7002"
+    volumes:
+      - ./data:/app/data
+
+  backend-api:
+    build: ./backend-api
+    environment:
+      - ENV=DEV
+      - HN_API_URL=http://hn-api-service:7001
+      - SUMMARIZATION_URL=http://summarization-service:7002
+    ports:
+      - "7000:7000"
+    depends_on:
+      - hn-api-service
+      - summarization-service
+    volumes:
+      - ./data:/app/data
+
+  frontend:
+    build: ./frontend
+    environment:
+      - REACT_APP_API_URL=http://localhost:7000
+    ports:
+      - "7003:3000"
+    depends_on:
+      - backend-api
+
+volumes:
+  data:

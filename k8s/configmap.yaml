@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hn-tldr-config
+  namespace: hn-tldr-test
+data:
+  ENV: "TEST"
+  HN_API_URL: "http://hn-api-service:7001"
+  SUMMARIZATION_URL: "http://summarization-service:7002"
+  REACT_APP_API_URL: "http://localhost:7000"

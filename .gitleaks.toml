@@ -1,0 +1,40 @@
+[extend]
+# Extend the base gitleaks config
+useDefault = true
+
+[[rules]]
+description = "OpenAI API Key"
+id = "openai-api-key"
+regex = '''sk-[a-zA-Z0-9]{20,}'''
+keywords = ["sk-"]
+
+[[rules]]
+description = "Generic API Key"
+id = "generic-api-key"
+regex = '''(?i)(api[_-]?key|apikey)['"]*\s*[:=]\s*['"][a-zA-Z0-9_-]{10,}['"]'''
+keywords = ["api_key", "apikey", "api-key"]
+
+[[rules]]
+description = "Generic Secret"
+id = "generic-secret"
+regex = '''(?i)(secret|password|passwd|token)['"]*\s*[:=]\s*['"][a-zA-Z0-9_-]{8,}['"]'''
+keywords = ["secret", "password", "passwd", "token"]
+
+[allowlist]
+description = "Allowlist for example files and test data"
+files = ['''^\.env\.example$''', '''^.*test.*$''', '''^.*\.md$''']
+paths = [
+    '''\.env\.example''',
+    '''test_.*\.py''',
+    '''.*_test\.py''',
+    '''README\.md''',
+    '''CONTRIBUTING\.md''',
+    '''DEPLOYMENT\.md''',
+    '''docs/.*\.md''',
+]
+
+regexes = [
+    '''eW91ci1vcGVuYWktYXBpLWtleS1iYXNlNjQtZW5jb2RlZA==''',
+    '''your-openai-api-key-here''',
+    '''sk-test-key-for-ci''',
+]

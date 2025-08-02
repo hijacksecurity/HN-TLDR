@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hn-api-service
+  namespace: hn-tldr-test
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: hn-api-service
+  template:
+    metadata:
+      labels:
+        app: hn-api-service
+    spec:
+      containers:
+      - name: hn-api-service
+        image: hn-api-service:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 7001
+        envFrom:
+        - configMapRef:
+            name: hn-tldr-config
+        volumeMounts:
+        - name: data-volume
+          mountPath: /app/data
+      volumes:
+      - name: data-volume
+        persistentVolumeClaim:
+          claimName: hn-tldr-data-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hn-api-service
+  namespace: hn-tldr-test
+spec:
+  selector:
+    app: hn-api-service
+  ports:
+  - protocol: TCP
+    port: 7001
+    targetPort: 7001
