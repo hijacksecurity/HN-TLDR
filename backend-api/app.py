@@ -141,6 +141,43 @@ async def get_tldr_stories():
     return TLDRResponse(**response_data)
 
 
+@app.post("/refresh")
+async def refresh_stories():
+    """Force refresh of stories, bypassing cache"""
+    stories = await fetch_stories()
+
+    async with httpx.AsyncClient() as client:
+        summary_tasks = [summarize_story(client, story) for story in stories]
+        summaries = await asyncio.gather(*summary_tasks)
+
+    now = datetime.now().isoformat()
+    tldr_stories = []
+
+    for story, summary in zip(stories, summaries):
+        tldr_story = TLDRStory(
+            id=story["id"],
+            title=story["title"],
+            url=story["url"],
+            score=story["score"],
+            by=story["by"],
+            time=story["time"],
+            descendants=story["descendants"],
+            summary=summary,
+            summary_generated_at=now,
+        )
+        tldr_stories.append(tldr_story)
+
+    response_data = {
+        "stories": [story.dict() for story in tldr_stories],
+        "generated_at": now,
+        "total_stories": len(tldr_stories),
+    }
+
+    save_tldr_cache(response_data)
+
+    return TLDRResponse(**response_data)
+
+
 @app.get("/stories/{story_id}")
 async def get_story_details(story_id: int):
     cached = load_tldr_cache()

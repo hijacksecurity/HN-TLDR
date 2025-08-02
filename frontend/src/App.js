@@ -35,18 +35,38 @@ function formatTime(timestamp) {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
-function StoryCard({ story, index }) {
+function formatLocalTime(isoString) {
+  const date = new Date(isoString);
+  return date.toLocaleString();
+}
+
+function StoryCard({ story, index, isNew, positionChanged }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 50 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay: index * 0.1 }}
+      animate={{ 
+        opacity: 1, 
+        y: 0,
+        scale: isNew ? [1, 1.05, 1] : 1,
+        boxShadow: isNew ? [
+          '0 4px 6px rgba(0, 0, 0, 0.1)',
+          '0 4px 20px rgba(76, 175, 80, 0.4)',
+          '0 4px 6px rgba(0, 0, 0, 0.1)'
+        ] : '0 4px 6px rgba(0, 0, 0, 0.1)'
+      }}
+      transition={{ 
+        duration: 0.3, 
+        delay: index * 0.1,
+        scale: { duration: 2, repeat: isNew ? 2 : 0 },
+        boxShadow: { duration: 2, repeat: isNew ? 2 : 0 }
+      }}
       whileHover={{ scale: 1.02 }}
     >
       <Card
         sx={{
           mb: 2,
           boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+          border: isNew ? '2px solid #4caf50' : positionChanged ? '2px solid #2196f3' : 'none',
           '&:hover': {
             boxShadow: '0 6px 12px rgba(0, 0, 0, 0.15)',
           }
@@ -57,12 +77,30 @@ function StoryCard({ story, index }) {
             <Typography variant="h6" component="h2" sx={{ fontWeight: 600, lineHeight: 1.3 }}>
               {story.title}
             </Typography>
-            <Chip
-              label={`#${index + 1}`}
-              color="primary"
-              size="small"
-              sx={{ ml: 1, minWidth: 40 }}
-            />
+            <Box display="flex" gap={1} alignItems="center">
+              {isNew && (
+                <Chip
+                  label="NEW"
+                  color="success"
+                  size="small"
+                  sx={{ fontWeight: 'bold' }}
+                />
+              )}
+              {positionChanged && !isNew && (
+                <Chip
+                  label="MOVED"
+                  color="info"
+                  size="small"
+                  sx={{ fontWeight: 'bold' }}
+                />
+              )}
+              <Chip
+                label={`#${index + 1}`}
+                color="primary"
+                size="small"
+                sx={{ ml: 1, minWidth: 40 }}
+              />
+            </Box>
           </Box>
 
           <Typography variant="body1" color="text.secondary" paragraph>
@@ -122,15 +160,30 @@ function StoryCard({ story, index }) {
 
 function App() {
   const [stories, setStories] = useState([]);
+  const [previousStories, setPreviousStories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
 
-  const fetchStories = async () => {
+  const fetchStories = async (forceRefresh = false) => {
     try {
-      setLoading(true);
+      if (forceRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
       setError(null);
-      const response = await axios.get(`${API_URL}/tldr`);
+      
+      const url = forceRefresh ? `${API_URL}/refresh` : `${API_URL}/tldr`;
+      const method = forceRefresh ? 'post' : 'get';
+      const response = await axios[method](url);
+      
+      // Store previous stories for comparison
+      if (stories.length > 0) {
+        setPreviousStories(stories);
+      }
+      
       setStories(response.data.stories);
       setLastUpdated(new Date(response.data.generated_at));
     } catch (err) {
@@ -138,7 +191,18 @@ function App() {
       console.error('Error fetching stories:', err);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
+  };
+
+  const getStoryChanges = (story, index) => {
+    if (previousStories.length === 0) return { isNew: false, positionChanged: false };
+    
+    const previousIndex = previousStories.findIndex(prev => prev.id === story.id);
+    const isNew = previousIndex === -1;
+    const positionChanged = !isNew && previousIndex !== index;
+    
+    return { isNew, positionChanged };
   };
 
   useEffect(() => {
@@ -152,7 +216,18 @@ function App() {
           <Typography variant="h5" component="div" sx={{ flexGrow: 1, fontWeight: 600 }}>
             📰 HackerNews TLDR
           </Typography>
-          <IconButton color="inherit" onClick={fetchStories} disabled={loading}>
+          <IconButton 
+            color="inherit" 
+            onClick={() => fetchStories(true)} 
+            disabled={loading || refreshing}
+            sx={{
+              animation: refreshing ? 'spin 1s linear infinite' : 'none',
+              '@keyframes spin': {
+                '0%': { transform: 'rotate(0deg)' },
+                '100%': { transform: 'rotate(360deg)' }
+              }
+            }}
+          >
             <RefreshIcon />
           </IconButton>
         </Toolbar>
@@ -168,7 +243,12 @@ function App() {
           </Typography>
           {lastUpdated && (
             <Typography variant="caption" display="block" sx={{ mt: 1 }}>
-              Last updated: {lastUpdated.toLocaleString()}
+              Last updated: {formatLocalTime(lastUpdated.toISOString())}
+            </Typography>
+          )}
+          {refreshing && (
+            <Typography variant="caption" display="block" sx={{ mt: 1, color: 'primary.main' }}>
+              🔄 Fetching fresh stories...
             </Typography>
           )}
         </Box>
@@ -204,9 +284,18 @@ function App() {
               animate={{ opacity: 1 }}
               transition={{ duration: 0.3 }}
             >
-              {stories.map((story, index) => (
-                <StoryCard key={story.id} story={story} index={index} />
-              ))}
+              {stories.map((story, index) => {
+                const { isNew, positionChanged } = getStoryChanges(story, index);
+                return (
+                  <StoryCard 
+                    key={story.id} 
+                    story={story} 
+                    index={index} 
+                    isNew={isNew}
+                    positionChanged={positionChanged}
+                  />
+                );
+              })}
             </motion.div>
           )}
         </AnimatePresence>
